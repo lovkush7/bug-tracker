@@ -1,0 +1,57 @@
+name: cicd pipeline
+
+on:
+    push:
+        branches: ["main"]
+    pull_request:
+        branches: ["main"]
+        
+    workflow_dispatch:
+        
+        inputs:
+            environments:
+                description: 'select the environment to deploy'
+                required: true
+                default: 'staging'
+                type: choice
+                options:
+                    - staging
+                    - production
+
+concurrency:
+    group: ${{github.workflow}}-${{github.ref}} 
+    cancel-in-progress: true
+    
+env:
+    NODE_VERSION: "20.x"
+    POSTGRES_VERSION: "16"
+    DOCKER_REGISTERY: ghcr.io
+    IMAGE_NAME: ${{github.repository}} 
+    SONAR_PROJECT_KEY: ${{github.repository_owner}}-${{github.event.repository.name}}
+    
+jobs:
+    code_quality:
+        name: "Code Quality"
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: checkout code
+              uses: actions/checkout@v4
+              with:
+                fetch-depth: 0
+
+            - name: setup pnpm
+              uses: pnpm/action-setup@v3
+              with:
+                version: 10
+
+            - name: setup node${{env.NODE_VERSION}}
+              uses: actions/setup-node@v4
+              with:
+                node-version: ${{env.NODE_VERSION}}
+                cache: "pnpm"
+                cache-dependency-path: |
+                 client/pnpm-lock.yml
+                 server/pnpm-lock.yml
+
+        
