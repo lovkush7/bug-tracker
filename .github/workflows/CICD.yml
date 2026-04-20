@@ -54,4 +54,74 @@ jobs:
                  client/pnpm-lock.yml
                  server/pnpm-lock.yml
 
+            - name: instaall frontend dependency
+              working-directory: ./client
+              run: pnpm install --frozen-lockfile
+              
+            - name: instaall backend dependency
+              working-directory: ./server
+              run: pnpm install --frozen-lockfile
+
+            - name: client lint
+              working-directory: ./client
+              run: |
+                pnpm run lint  --max-warnings=0
+                pnpm run format:check
+                
+            - name: server lint
+              working-directory: ./server
+              run: |
+                pnpm run lint  --max-warnings=0
+                pnpm run format:check
+
+            - name: typescript type check -client
+              working-directory: ./client
+              run: pnpm run type-check
+              
+              
+            - name: typescript type check -server
+              working-directory: ./server
+              run: pnpm run type-check
+
+            
+              
+    dependency_audit:
+        name: "Dependency Audit"
+        runs-on: ubuntu-latest
+
+        steps: 
+            - name: chekout code   
+              uses: actions/checkout@v4
+              with:
+                fetch-depth: 0
+
+            - name: setup node${{env.NODE_VERSION}}
+              uses: actions/setup-node@v4
+              with:
+                node-version: ${{env.NODE_VERSION}}
+                cache: "pnpm"
+
+            - name: audit client dependency
+              working-directory: ./client
+              run: pnpm audit --audit-level=High
+
+            - name: audit server dependency
+              working-directory: ./server
+              run: pnpm audit --audit-level=High
+
+   
+            - name: Run snyk security scan
+              uses: snyk/actions/node@master
+              continue-on-error: true
+              with:
+                args: --severity-threshold=high  --all-projects --sarif-file-output=snyk.sarif
+
+            - name: upload snyk result on github security
+              uses: github/codeql-action/upload-sarif@v3    
+              if: always()
+              with:
+                sarif_file: snyk.sarif
+              continue-on-error: true
+
+
         
