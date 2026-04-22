@@ -176,3 +176,99 @@ jobs:
           with:
             category: "/languages:${{matrix.languages}}"  
           
+
+    test_server:
+      name: "server test (jest+ supertest)"
+      runs-on: ubuntu-latest
+      needs: [code_quality] 
+
+      services:
+        postgres:
+          image: postgres:16-alpine
+          env:
+            POSTGRES_PASSWORD: test_password
+            POSTGRES_USER: test_user
+            POSTGRES_DB: test_db
+          ports:
+            - "5432:5432"
+          options: >-
+            --health-cmd pg_isready
+            --health-interval 10s
+            --health-timeout 5s
+            --health-retries 5
+  
+        redis:
+          image: redis:7-alpine
+          ports:
+            - "6379:6379"
+          options: >-
+            --health-cmd "redis-cli ping"
+            --health-intrval 10s 
+            --health-timeout 5s
+            --health-retries 5
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgres://test_user:test_password@postgres:5432/test_db
+        REDIS_URL: redis://redis:6379
+        JWT_SECRET: test_jwtsecret_for_ci
+        JWT_REFRESH_SECRET: test_jwtrefreshsecret_for_ci
+        
+
+      steps:
+        - name: checkout code
+          uses: actions/checkout@v4
+          with: 
+            fetch-depth: 0
+            
+        - name: setup pnpm
+          uses: pnpm/action-setup@v3
+          with:
+            version: 10
+            
+        - name: setup node
+          uses: actions/setup-node@v4
+          with: 
+            node-version: ${{env.NODE_VERSION}}
+            cache: "pnpm"
+            cache-dependency-path: |
+              server/pnpm-lock.yml
+
+        - name: install dependency
+          working-directory: ./server
+          run: pnpm install --frozen-lockfile
+          
+
+        - name: Run db migration
+          working-directory: ./server
+          run: pnpm run db:migrate 
+          
+        - name: Run db seed (test data)
+          working-directory: ./server
+          run: pnpm run db:seed:test
+          
+        - name: Run unit test with coverage
+          working-directory: ./server
+          run: pnpm run test:unit -- --coverage coverageReporters=lcov,text,clover
+
+        - name: Integrating testing
+          working-directory: ./server
+          run: pnpm run test:integration
+          
+        - name: upload coverage report
+          uses: codecov/codecov-action@v4
+          with:
+            token: ${{secrets.CODECOV_TOKEN}}
+            directory: ./server/coverage
+            flags: server
+            fail_ci_if_error: true
+
+        - name: Assert coverage threadshold
+          working-directory: ./server
+          run: pnpm run test:coverage-chek     
+            
+  
+   
+        
+      
+            
+              
